@@ -25,7 +25,6 @@ grid on
 subplot(3,1,3)
 plot(t, traj(:,6), 'LineWidth',2)
 set(gca, 'xlim', [t(1),t(end)])
-set(gca, 'ylim', [-0.2,0.2])
 xlabel('\itt\rm(s)')
 ylabel('\itv_d\rm(m/s)')
 grid on
