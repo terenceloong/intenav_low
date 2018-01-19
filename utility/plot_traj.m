@@ -3,7 +3,7 @@ t = (0:n-1)*dt;
 
 figure
 plot(traj(:,2),traj(:,1), 'LineWidth',2)
-xlabel('\lambda\rm(\circ)')
+xlabel('\lambda(\circ)')
 ylabel('\itL\rm(\circ)')
 title('Position')
 grid on
@@ -34,18 +34,18 @@ subplot(3,1,1)
 plot(t, traj(:,7), 'LineWidth',2)
 set(gca, 'xlim', [t(1),t(end)])
 xlabel('\itt\rm(s)')
-ylabel('\psi\rm(\circ)')
+ylabel('\psi(\circ)')
 title('Attitude')
 grid on
 subplot(3,1,2)
 plot(t, traj(:,8), 'LineWidth',2)
 set(gca, 'xlim', [t(1),t(end)])
 xlabel('\itt\rm(s)')
-ylabel('\theta\rm(\circ)')
+ylabel('\theta(\circ)')
 grid on
 subplot(3,1,3)
 plot(t, traj(:,9), 'LineWidth',2)
 set(gca, 'xlim', [t(1),t(end)])
 xlabel('\itt\rm(s)')
-ylabel('\gamma\rm(\circ)')
+ylabel('\gamma(\circ)')
 grid on
