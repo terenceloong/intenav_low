@@ -31,9 +31,9 @@ filter_para;
 nav = zeros(n,9); %[lat, lon, h, vn, ve, vd, yaw, pitch, roll]
 filter = zeros(n,5); %[ex,ey,ez, dtr,dtv]
 error_gps = zeros(n,6);
+output_r = zeros(n,8); %%%
 output_Xc = zeros(n,14); %%%
 output_P = zeros(n,14); %%%
-output = zeros(n,14); %%%
 
 %--initialize--%
 avp = nav_init(p, v, att);
@@ -104,7 +104,7 @@ for k=1:n
         [H, Z, ng] = measure_matrix(avp, sv);
         R = diag([ones(1,ng)*R_rou, ones(1,ng)*R_drou]);
         
-        if t<50
+%         if t<50
 %         if acc2(2)<1
             H = [H; zeros(1,14)];
             H(end,3) = -1;
@@ -123,7 +123,7 @@ for k=1:n
                 dpsi = dpsi+2*pi;
             end
             Z = [Z; dpsi+randn(1)*0.01];
-        end
+%         end
 
         %----------measure update----------%
         K = P*H' / (H*P*H'+R);
@@ -131,7 +131,7 @@ for k=1:n
         Xc = K*r;
         X = X + Xc;
         P = (In-K*H)*P*(In-K*H)' + K*R*K';
-%         output(k,1:8) = r(1:8)'; %%%
+        output_r(k,:) = r(1:8)'; %%%
         output_Xc(k,:) = Xc'; %%%
         
         %---------adjust----------%
@@ -143,7 +143,7 @@ for k=1:n
         avp(5:10) = avp(5:10) - X(4:9);
         X(1:9) = zeros(9,1);
     end
-
+    
     %---------store filter----------%
     filter(k,1:3) = X(10:12)'/pi*180;
     filter(k,4:5) = X(13:14)';
@@ -156,7 +156,6 @@ for k=1:n
     nav(k,4:6) = avp(5:7)'; %m/s
     [r1,r2,r3] = quat2angle(avp(1:4)');
     nav(k,7:9) = [r1,r2,r3] /pi*180; %deg
-%     output(k,1:3) = acc1'*angle2dcm(r1+5.5/180*pi,r2+0.0/180*pi,r3-1.1/180*pi); %%%
 end
 nav = [pva0; nav];
 
@@ -191,19 +190,19 @@ function [Phi, Gamma] = state_matrix(avp, fb, dts)
     wien = [w*cos(lat); 0; -w*sin(lat)];
     wenn = [v(2)/(Rn+h); -v(1)/(Rm+h); -v(2)/(Rn+h)*tan(lat)];
     winn = antisym(wien+wenn);
-    w2inn = antisym(2*wien+wenn); %
+    w2inn = antisym(2*wien+wenn);
     Cbn = quat2dcm(avp(1:4)')';
     fn = antisym(Cbn*fb);
     E1 = [     0,        1/(Rn+h),    0;
           -1/(Rm+h),         0,       0;
-               0,   -tan(lat)/(Rn+h), 0]; %
+               0,   -tan(lat)/(Rn+h), 0];
     E2 = diag([1/(Rm+h), sec(lat)/(Rn+h), -1]);
     A = zeros(14);
-%     A(1:3,1:3) = -winn;
-% 	A(1:3,4:6) = E1; %
+%     A(1:3,1:3) = -winn; %
+%     A(1:3,4:6) = E1; %
     A(1:3,10:12) = -Cbn;
     A(4:6,1:3) = fn;
-% 	A(4:6,4:6) = -w2inn; %
+%     A(4:6,4:6) = -w2inn; %
     A(7:9,4:6) = E2;
     A(13,14) = 1;
     Phi = eye(14)+A*dts+(A*dts)^2/2; %--Phi

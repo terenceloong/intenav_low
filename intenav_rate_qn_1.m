@@ -213,19 +213,19 @@ function [Phi, Gamma] = state_matrix(avp, fb, dts)
     wien = [w*cos(lat); 0; -w*sin(lat)];
     wenn = [v(2)/(Rn+h); -v(1)/(Rm+h); -v(2)/(Rn+h)*tan(lat)];
     winn = antisym(wien+wenn);
-    w2inn = antisym(2*wien+wenn); %
+    w2inn = antisym(2*wien+wenn);
     Cbn = quat2dcm(avp(1:4)')';
     fn = antisym(Cbn*fb);
     E1 = [     0,        1/(Rn+h),    0;
           -1/(Rm+h),         0,       0;
-               0,   -tan(lat)/(Rn+h), 0]; %
+               0,   -tan(lat)/(Rn+h), 0];
     E2 = diag([1/(Rm+h), sec(lat)/(Rn+h), -1]);
     A = zeros(14);
-%     A(1:3,1:3) = -winn;
-% 	A(1:3,4:6) = E1; %
+%     A(1:3,1:3) = -winn; %
+%     A(1:3,4:6) = E1; %
     A(1:3,10:12) = -Cbn;
     A(4:6,1:3) = fn;
-% 	A(4:6,4:6) = -w2inn; %
+%     A(4:6,4:6) = -w2inn; %
     A(7:9,4:6) = E2;
     A(13,14) = 1;
     Phi = eye(14)+A*dts+(A*dts)^2/2; %--Phi
