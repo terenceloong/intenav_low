@@ -9,7 +9,7 @@ if t==0
     gpsflag = zeros(T/dt+1,1); %0/1
     %---------------------------------------------------------------------%
     p0 = [30, 120, 5000]; %deg, [lat,lon,h]
-    v0 = [200, 0, 40]; %m/s,deg, [horizontal velocity, down velocity, velocity direction]
+    v0 = [300, 0, 40]; %m/s,deg, [horizontal velocity, down velocity, velocity direction]
     att0 = [40, 0, 0]; %deg, [psi,theta,gamma]
     %---------------------------------------------------------------------%
     Cnb = angle2dcm(att0(1)/180*pi, att0(2)/180*pi, att0(3)/180*pi);

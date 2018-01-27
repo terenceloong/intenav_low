@@ -6,8 +6,8 @@ dt = 0.01;
 dtgps = 0.1;
 
 %--low accurate--%
-acc_bias = [2, 3, 1]*0.01 *0; %[mg]
-gyro_bias = [0.2, 0.15, -0.1]/180*pi *0; %[deg]
+acc_bias = [5, -5, -4]*0.01 *1; %[mg]
+gyro_bias = [0.2, 0.15, -0.1]/180*pi *1; %[deg]
 acc_noise = ( 3 /3*0.01)^2*dt *1; %[mg],3sigma
 gyro_noise = ( 0.1 /3/180*pi)^2*dt *1; %[deg/s],3sigma
 gyro_walk = 0.2 *1; %random walk gain

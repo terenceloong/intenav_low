@@ -1,7 +1,9 @@
+%complete navigation process
 %deep-coupled integrated navigation, navigation solve in a step.
 %navigation frame is NED, IMU's output is rate.
 time1 = clock;
 earth_constant;
+file_name = mfilename;
 
 %--almanac--%
 [gps_almanac, gps_week, second] = load_almanac('949_405504.txt', '11/04/2017', '10:10:20');
@@ -29,22 +31,21 @@ filter_para;
 %*************************************************************************%
 %--store--%
 nav = zeros(n,9); %[lat, lon, h, vn, ve, vd, yaw, pitch, roll]
-filter = zeros(n,5); %[ex,ey,ez, dtr,dtv]
+filter = zeros(n,6); %[ex,ey,ez, az, dtr,dtv]
 error_gps = zeros(n,6);
-output_Xc = zeros(n,14); %%%
-output_P = zeros(n,14); %%%
-output = zeros(n,14); %%%
+output_r = zeros(n,8); %%%
+output_Xc = zeros(n,15); %%%
+output_P = zeros(n,15); %%%
 
 %--initialize--%
 avp = nav_init(p, v, att);
 P = P0;
-s = In;
-X = zeros(14,1); %[dpsix,dpsiy,dpsiz, dvn,dve,dvd, dlat,dlon,dh, ex,ey,ez, dtr, dtv]
+s = In*sqrt(1.00);
+X = zeros(15,1); %[dpsix,dpsiy,dpsiz, dvn,dve,dvd, dlat,dlon,dh, ex,ey,ez, dtr, dtv]
 dgyro = [0;0;0]; %gyro compensation
 dacc = [0;0;0]; %accelerometer compensation
 psi0 = att(1)/180*pi; %rad, reference yaw angle
 sv4_num = [100,100,100,100]; %the number of selected satellites
-Xci = zeros(14,10);
 
 for k=1:n
     t = k*dts;
@@ -107,18 +108,17 @@ for k=1:n
         
 %         if t<50
 %         if acc2(2)<1
-            H = [H; zeros(1,14)];
+            H = [H; zeros(1,15)];
             H(end,3) = -1;
             R = [R, zeros(2*ng,1)];
             R = [R; zeros(1,2*ng+1)];
             R(end,end) = R_psi;
-%             psi0 = atan2(gps(6),gps(5));
             psi0 = traj(kj,7)/180*pi;
             [psi,~,~] = dcm2angle(quat2dcm(avp(1:4)'));
             dpsi = psi-psi0;
-            if t>50
-                dpsi = dpsi+0.1/180*pi;
-            end
+%             if t>50
+%                 dpsi = dpsi+0.1/180*pi;
+%             end
             if dpsi>pi
                 dpsi = dpsi-2*pi;
             elseif dpsi<-pi
@@ -133,20 +133,10 @@ for k=1:n
         Xc = K*r;
         X = X + Xc;
         P = (In-K*H)*P*(In-K*H)' + K*R*K';
-        output(k,1:8) = r(1:8)'; %%%
+        output_r(k,:) = r(1:8)'; %%%
         output_Xc(k,:) = Xc'; %%%
         
         %---------fading----------%
-%         s = In*sqrt(1.002);
-%         s(10,10) = 1;
-%         if t>20
-%             Xci = [Xci(:,2:end),Xc];
-%             Xcs = sum(Xci,2);
-%             Xcp = abs(Xcs./sqrt(diag(P)));
-%             Xcp = 1+0.008*(1-exp(-Xcp*1.2));
-%             s = diag(sqrt(Xcp));
-%             s(10,10) = 1;
-%         end
         
         %---------adjust----------%
         if norm(X(1:3))>0
@@ -159,16 +149,14 @@ for k=1:n
     end
     
     %---------gyro compensation----------%
-%     if t==20
-%         dgyro = X(10:12)/pi*180;
-%         X(10:12) = [0;0;0];
-%     end
-
+    if t==20
+        dgyro = X(10:12)/pi*180;
+        X(10:12) = [0;0;0];
+    end
+    
     %---------store filter----------%
     filter(k,1:3) = X(10:12)'/pi*180;
-    filter(k,4:5) = X(13:14)';
-%     filter(k,6:8) = X(1:3)'/pi*180;
-%     filter(k,9:14) = X(4:9);
+    filter(k,4:6) = X(13:15)';
     output_P(k,:) = sqrt(diag(P))'; %%%
 %=========================================================================%
     
@@ -178,7 +166,6 @@ for k=1:n
     nav(k,4:6) = avp(5:7)'; %m/s
     [r1,r2,r3] = quat2angle(avp(1:4)');
     nav(k,7:9) = [r1,r2,r3] /pi*180; %deg
-    output(k,1:3) = acc1'*angle2dcm(r1+5.5/180*pi,r2+0.0/180*pi,r3-1.1/180*pi);
 end
 nav = [pva0; nav];
 
@@ -205,31 +192,32 @@ end
 
 function [Phi, Gamma] = state_matrix(avp, fb, dts)
     global a f w
-    v = avp(5:7);
+%     v = avp(5:7);
     lat = avp(8);
     h = avp(10);
     Rm = (1-f)^2*a / (1-(2-f)*f*sin(lat)^2)^1.5;
     Rn =         a / (1-(2-f)*f*sin(lat)^2)^0.5;
-    wien = [w*cos(lat); 0; -w*sin(lat)];
-    wenn = [v(2)/(Rn+h); -v(1)/(Rm+h); -v(2)/(Rn+h)*tan(lat)];
-    winn = antisym(wien+wenn);
-    w2inn = antisym(2*wien+wenn);
+%     wien = [w*cos(lat); 0; -w*sin(lat)];
+%     wenn = [v(2)/(Rn+h); -v(1)/(Rm+h); -v(2)/(Rn+h)*tan(lat)];
+%     winn = antisym(wien+wenn);
+%     w2inn = antisym(2*wien+wenn);
     Cbn = quat2dcm(avp(1:4)')';
     fn = antisym(Cbn*fb);
-    E1 = [     0,        1/(Rn+h),    0;
-          -1/(Rm+h),         0,       0;
-               0,   -tan(lat)/(Rn+h), 0];
+%     E1 = [     0,        1/(Rn+h),    0;
+%           -1/(Rm+h),         0,       0;
+%                0,   -tan(lat)/(Rn+h), 0];
     E2 = diag([1/(Rm+h), sec(lat)/(Rn+h), -1]);
-    A = zeros(14);
+    A = zeros(15);
 %     A(1:3,1:3) = -winn; %
 %     A(1:3,4:6) = E1; %
     A(1:3,10:12) = -Cbn;
     A(4:6,1:3) = fn;
+    A(4:6,13) = Cbn(:,3);
 %     A(4:6,4:6) = -w2inn; %
     A(7:9,4:6) = E2;
-    A(13,14) = 1;
-    Phi = eye(14)+A*dts+(A*dts)^2/2; %--Phi
-    Gamma = eye(14);
+    A(14,15) = 1;
+    Phi = eye(15)+A*dts+(A*dts)^2/2; %--Phi
+    Gamma = eye(15);
     Gamma(1:3,1:3) = -Cbn;
     Gamma(4:6,4:6) = Cbn;
     Gamma = Gamma*dts; %--Gmamma
@@ -260,10 +248,10 @@ function [H, Z, ng] = measure_matrix(avp, sv)
            (a*(1-f)^2+h)*cos(lat),             0,            sin(lat)        ];
     Ha = He*F;
     Hb = He*Cen';
-    H = zeros(2*ng,14);
+    H = zeros(2*ng,15);
     H(1:ng,7:9) = Ha;
-    H(1:ng,13) = -ones(ng,1);
+    H(1:ng,14) = -ones(ng,1);
     H(ng+1:2*ng,4:6) = Hb;
-    H(ng+1:2*ng,14) = -ones(ng,1);
+    H(ng+1:2*ng,15) = -ones(ng,1);
     Z = [rou-sv(:,8); drou-sv(:,9)];
 end

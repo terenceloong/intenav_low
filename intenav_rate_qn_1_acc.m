@@ -1,4 +1,4 @@
-%accelerometer bias isn't state variable
+%z-axis accelerometer bias is a state variable
 %deep-coupled integrated navigation, navigation solve in a step.
 %navigation frame is NED, IMU's output is rate.
 time1 = clock;
@@ -31,17 +31,17 @@ filter_para;
 %*************************************************************************%
 %--store--%
 nav = zeros(n,9); %[lat, lon, h, vn, ve, vd, yaw, pitch, roll]
-filter = zeros(n,5); %[ex,ey,ez, dtr,dtv]
+filter = zeros(n,6); %[ex,ey,ez, az, dtr,dtv]
 error_gps = zeros(n,6);
 output_r = zeros(n,8); %%%
-output_Xc = zeros(n,14); %%%
-output_P = zeros(n,14); %%%
+output_Xc = zeros(n,15); %%%
+output_P = zeros(n,15); %%%
 
 %--initialize--%
 avp = nav_init(p, v, att);
 P = P0;
 s = In*sqrt(1.00);
-X = zeros(14,1); %[dpsix,dpsiy,dpsiz, dvn,dve,dvd, dlat,dlon,dh, ex,ey,ez, dtr, dtv]
+X = zeros(15,1); %[dpsix,dpsiy,dpsiz, dvn,dve,dvd, dlat,dlon,dh, ex,ey,ez, dtr, dtv]
 dgyro = [0;0;0]; %gyro compensation
 dacc = [0;0;0]; %accelerometer compensation
 psi0 = att(1)/180*pi; %rad, reference yaw angle
@@ -108,7 +108,7 @@ for k=1:n
         
 %         if t<50
 %         if acc2(2)<1
-            H = [H; zeros(1,14)];
+            H = [H; zeros(1,15)];
             H(end,3) = -1;
             R = [R, zeros(2*ng,1)];
             R = [R; zeros(1,2*ng+1)];
@@ -148,7 +148,7 @@ for k=1:n
     
     %---------store filter----------%
     filter(k,1:3) = X(10:12)'/pi*180;
-    filter(k,4:5) = X(13:14)';
+    filter(k,4:6) = X(13:15)';
     output_P(k,:) = sqrt(diag(P))'; %%%
 %=========================================================================%
     
@@ -199,16 +199,17 @@ function [Phi, Gamma] = state_matrix(avp, fb, dts)
 %           -1/(Rm+h),         0,       0;
 %                0,   -tan(lat)/(Rn+h), 0];
     E2 = diag([1/(Rm+h), sec(lat)/(Rn+h), -1]);
-    A = zeros(14);
+    A = zeros(15);
 %     A(1:3,1:3) = -winn; %
 %     A(1:3,4:6) = E1; %
     A(1:3,10:12) = -Cbn;
     A(4:6,1:3) = fn;
+    A(4:6,13) = Cbn(:,3);
 %     A(4:6,4:6) = -w2inn; %
     A(7:9,4:6) = E2;
-    A(13,14) = 1;
-    Phi = eye(14)+A*dts+(A*dts)^2/2; %--Phi
-    Gamma = eye(14);
+    A(14,15) = 1;
+    Phi = eye(15)+A*dts+(A*dts)^2/2; %--Phi
+    Gamma = eye(15);
     Gamma(1:3,1:3) = -Cbn;
     Gamma(4:6,4:6) = Cbn;
     Gamma = Gamma*dts; %--Gmamma
@@ -239,10 +240,10 @@ function [H, Z, ng] = measure_matrix(avp, sv)
            (a*(1-f)^2+h)*cos(lat),             0,            sin(lat)        ];
     Ha = He*F;
     Hb = He*Cen';
-    H = zeros(2*ng,14);
+    H = zeros(2*ng,15);
     H(1:ng,7:9) = Ha;
-    H(1:ng,13) = -ones(ng,1);
+    H(1:ng,14) = -ones(ng,1);
     H(ng+1:2*ng,4:6) = Hb;
-    H(ng+1:2*ng,14) = -ones(ng,1);
+    H(ng+1:2*ng,15) = -ones(ng,1);
     Z = [rou-sv(:,8); drou-sv(:,9)];
 end
