@@ -1,9 +1,8 @@
-%accelerometer bias isn't state variable
+%process various state model
 %deep-coupled integrated navigation, navigation solve in a step.
 %navigation frame is NED, IMU's output is rate.
 time1 = clock;
 earth_constant;
-file_name = mfilename;
 
 %--almanac--%
 [gps_almanac, gps_week, second] = load_almanac('949_405504.txt', '11/04/2017', '10:10:20');
@@ -26,22 +25,24 @@ dtr = 1*1; %m
 dtv = 0.1*1; %m/s
 
 %--filter--%
+global Nx
+Nx = 14;
 filter_para;
 
 %*************************************************************************%
 %--store--%
 nav = zeros(n,9); %[lat, lon, h, vn, ve, vd, yaw, pitch, roll]
-filter = zeros(n,5); %[ex,ey,ez, dtr,dtv]
+filter = zeros(n,Nx-9); %[dtr,dtv, ex,ey,ez, ax,ay,az]
 error_gps = zeros(n,6);
-output_r = zeros(n,8); %%%
-output_Xc = zeros(n,14); %%%
-output_P = zeros(n,14); %%%
+output_r = zeros(n,8); %residual
+output_Xc = zeros(n,Nx); %state variable correction
+output_P = zeros(n,Nx); %state variable standard deviation
 
 %--initialize--%
 avp = nav_init(p, v, att);
 P = P0;
 s = In*sqrt(1.00);
-X = zeros(14,1); %[dpsix,dpsiy,dpsiz, dvn,dve,dvd, dlat,dlon,dh, ex,ey,ez, dtr, dtv]
+X = zeros(Nx,1); %[phix,phiy,phiz, dvn,dve,dvd, dlat,dlon,dh, dtr,dtv, ex,ey,ez, ax,ay,az]
 dgyro = [0;0;0]; %gyro compensation
 dacc = [0;0;0]; %accelerometer compensation
 psi0 = att(1)/180*pi; %rad, reference yaw angle
@@ -69,7 +70,6 @@ for k=1:n
     end
     
     %--GPS output--%
-    error_gps(k,:) = [0,0,0,0,0,0];
     if gpsflag(kj)==1
         sv = sv_ecef(gps_almanac, [gps_week,second+t], traj(kj,1:3), traj(kj,4:6), [sigma3_rou,sigma3_drou,dtr+dtv*t,dtv]);
         sv = visible_stars(sv, 10);
@@ -96,10 +96,10 @@ for k=1:n
     
 %=========================================================================%
     %----------time update----------%
-    [Phi, Gamma] = state_matrix(avp, acc1, dts);
+    Phi = state_matrix(avp, acc1, dts);
     X = Phi*X;
     P = s*P*s;
-    P = Phi*P*Phi' + Gamma*Q*Gamma';
+    P = Phi*P*Phi' + Q*dts^2;
 
     if gpsflag(kj)==1
         %----------claculate measure matrix----------%
@@ -108,7 +108,7 @@ for k=1:n
         
 %         if t<50
 %         if acc2(2)<1
-            H = [H; zeros(1,14)];
+            H = [H; zeros(1,Nx)];
             H(end,3) = -1;
             R = [R, zeros(2*ng,1)];
             R = [R; zeros(1,2*ng+1)];
@@ -147,8 +147,9 @@ for k=1:n
     end
     
     %---------store filter----------%
-    filter(k,1:3) = X(10:12)'/pi*180;
-    filter(k,4:5) = X(13:14)';
+    filter(k,1:2) = X(10:11)';
+    filter(k,3:5) = X(12:14)'/pi*180;
+    filter(k,6:end) = X(15:end)';
     output_P(k,:) = sqrt(diag(P))'; %%%
 %=========================================================================%
     
@@ -182,40 +183,38 @@ function avp = nav_init(p, v, att)
     %                           m/s       rad     m
 end
 
-function [Phi, Gamma] = state_matrix(avp, fb, dts)
-    global a f w
-%     v = avp(5:7);
+function Phi = state_matrix(avp, fb, dts)
+    global a f Nx
     lat = avp(8);
     h = avp(10);
     Rm = (1-f)^2*a / (1-(2-f)*f*sin(lat)^2)^1.5;
     Rn =         a / (1-(2-f)*f*sin(lat)^2)^0.5;
-%     wien = [w*cos(lat); 0; -w*sin(lat)];
-%     wenn = [v(2)/(Rn+h); -v(1)/(Rm+h); -v(2)/(Rn+h)*tan(lat)];
-%     winn = antisym(wien+wenn);
-%     w2inn = antisym(2*wien+wenn);
     Cbn = quat2dcm(avp(1:4)')';
     fn = antisym(Cbn*fb);
-%     E1 = [     0,        1/(Rn+h),    0;
-%           -1/(Rm+h),         0,       0;
-%                0,   -tan(lat)/(Rn+h), 0];
-    E2 = diag([1/(Rm+h), sec(lat)/(Rn+h), -1]);
-    A = zeros(14);
-%     A(1:3,1:3) = -winn; %
-%     A(1:3,4:6) = E1; %
-    A(1:3,10:12) = -Cbn;
+    A = zeros(Nx);
+    A(1:3,12:14) = -Cbn;
     A(4:6,1:3) = fn;
-%     A(4:6,4:6) = -w2inn; %
-    A(7:9,4:6) = E2;
-    A(13,14) = 1;
-    Phi = eye(14)+A*dts+(A*dts)^2/2; %--Phi
-    Gamma = eye(14);
-    Gamma(1:3,1:3) = -Cbn;
-    Gamma(4:6,4:6) = Cbn;
-    Gamma = Gamma*dts; %--Gmamma
+    if Nx == 15 %accelerometer bias
+        A(4:6,15) = Cbn(:,3);
+    elseif Nx ==17
+        A(4:6,15:17) = Cbn;
+    end
+    A(7:9,4:6) = diag([1/(Rm+h), sec(lat)/(Rn+h), -1]);
+    A(10,11) = 1;
+    %----------------------------------------------------%
+%     global w
+%     v = avp(5:7);
+%     wien = [w*cos(lat); 0; -w*sin(lat)];
+%     wenn = [v(2)/(Rn+h); -v(1)/(Rm+h); -v(2)/(Rn+h)*tan(lat)];
+%     A(1:3,1:3) = -antisym(wien+wenn);
+%     A(1:3,4:6) = [0,1/(Rn+h),0; -1/(Rm+h),0,0; 0,-tan(lat)/(Rn+h),0];
+%     A(4:6,4:6) = -antisym(2*wien+wenn);
+    %----------------------------------------------------%
+    Phi = eye(Nx)+A*dts+(A*dts)^2/2;
 end
 
 function [H, Z, ng] = measure_matrix(avp, sv)
-    global a f
+    global a f Nx
     lat = avp(8);
     lon = avp(9);
     h = avp(10);
@@ -239,10 +238,10 @@ function [H, Z, ng] = measure_matrix(avp, sv)
            (a*(1-f)^2+h)*cos(lat),             0,            sin(lat)        ];
     Ha = He*F;
     Hb = He*Cen';
-    H = zeros(2*ng,14);
+    H = zeros(2*ng,Nx);
     H(1:ng,7:9) = Ha;
-    H(1:ng,13) = -ones(ng,1);
+    H(1:ng,10) = -ones(ng,1);
     H(ng+1:2*ng,4:6) = Hb;
-    H(ng+1:2*ng,14) = -ones(ng,1);
+    H(ng+1:2*ng,11) = -ones(ng,1);
     Z = [rou-sv(:,8); drou-sv(:,9)];
 end

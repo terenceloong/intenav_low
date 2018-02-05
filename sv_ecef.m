@@ -60,7 +60,7 @@ for k=1:num
     vy = vr*sin(phi) + vt*cos(phi);
     vs = [vx*cos(Omega)-vy*cos(i)*sin(Omega); vx*sin(Omega)+vy*cos(i)*cos(Omega); vy*sin(i)] - cross([0;0;w],rs); %(ecef)
     data(k,5:7) = vs'; %vx,vy,vz
-    data(k,9) = dot(vs-vp, rpsu) + dtv + randn(1)*sigma_drou; %pseudo range rate, m/s
+    data(k,9) = (vs-vp)'*rpsu + dtv + randn(1)*sigma_drou; %pseudo range rate, m/s
 end
 
 end
