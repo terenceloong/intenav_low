@@ -13,8 +13,8 @@ gyro_noise = (0.66/sqrt(3600)/180*pi)^2 *1; % [deg/s/sqrt(Hz)], (rad/s)^2/Hz
 acc_drift = 0;
 gyro_drift = 1;
 
-acc_quantize = 0.01 *0; %m/s^2
-gyro_quantize = 0.01 *0; %deg/s
+acc_quantize = 0.01 *1; %m/s^2
+gyro_quantize = 0.01 *1; %deg/s
 % noise_seeds = [23093 23094 23095 23096 23097 23098];
 noise_seeds = randi(1e5,1,6);
 %***************************************%
@@ -35,5 +35,13 @@ cmd.signals.dimensions = 6;
 sim trajectory
 
 %--drift--%
-drift_g = gene_drift(size(imu,1), 3, dt, 40, [10,4], 0.05);
-imu(:,1:3) = imu(:,1:3)+drift_g*gyro_drift;
+drift_g = gene_drift(size(imu,1), 3, dt, 40, [10,4], 0.05)*gyro_drift;
+imu(:,1:3) = imu(:,1:3)+drift_g;
+
+%--quantize--%
+if acc_quantize~=0
+    imu(:,4:6) = acc_quantize*round(imu(:,4:6)/acc_quantize);
+end
+if gyro_quantize~=0
+    imu(:,1:3) = gyro_quantize*round(imu(:,1:3)/gyro_quantize);
+end
