@@ -3,10 +3,10 @@ clear;clc;
 
 T = 200;
 dt = 0.01;
-n = T/dt;
+n = (T+100)/dt; %100s is used to make filter stable
 tr = 40; %correlation time
 fw = [10,4];
-gain = 0.1;
+gain = 0.05;
 
 %--generate random sequence which correlation time is tr--%
 data = zeros(n,3);
@@ -31,6 +31,9 @@ for p=1:2
         data(k,p+1) = y;
     end
 end
+
+data = data(100/dt+1:end,:);
+n = size(data,1);
 
 disp(['max=',num2str(max(data(:,3))*gain)])
 disp(['min=',num2str(min(data(:,3))*gain)])

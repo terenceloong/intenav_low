@@ -3,6 +3,7 @@ function data = gene_drift(n, m, dt, tr, fw, gain)
 %n-row, m-column, dt-sample time, tr-correlation time, fw-filter parameter [fw1,fw2]
 
 %--generate random sequence which correlation time is tr--%
+n = n + 100/dt; %100s is used to make filter stable
 data = zeros(n,m);
 data(1,:) = randn(1,m);
 for k=2:n
@@ -27,6 +28,6 @@ for p=1:2
     end
 end
 
-data = data*gain;
+data = data(100/dt+1:end,:)*gain;
 
 end
