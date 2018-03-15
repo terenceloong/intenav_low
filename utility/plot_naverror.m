@@ -1,7 +1,7 @@
 n = size(nav,1);
 t = (0:n-1)*dts;
 
-error = nav - traj(1:sample:sample*n,:);
+error = nav - traj(1:2:end,:);
 error(:,1:2) = error(:,1:2)/180*pi*6378137;
 for k=1:n
     if error(k,7)>300

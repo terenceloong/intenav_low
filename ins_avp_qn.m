@@ -3,7 +3,7 @@
 
 %x = [q1; q2; q3; q4; vn; ve; vd; lat; lon; h]
 %u = [wx; wy; wz ax; ay; az], rad
-function dx = fun_dx_qn(x, u)
+function dx = ins_avp_qn(x, u)
 
 global a f w
 q = x(1:4);

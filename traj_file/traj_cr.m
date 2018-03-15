@@ -1,16 +1,16 @@
-%maneuver
+%circle
 
 if t==0
     %-------------- init --------------%
-    T = 500;
+    T = 20;
     n = T/dt*2+1;
 	angle = zeros(n,3); %deg
     speed = zeros(n,3); %m/s
     gpsflag = zeros(T/dt+1,1); %0/1
     %---------------------------------------------------------------------%
     p0 = [30, 120, 5000]; %deg, [lat,lon,h]
-    v0 = [200, 0, 90]; %m/s,deg, [horizontal velocity, down velocity, velocity direction]
-    att0 = [90, 0, 0]; %deg, [psi,theta,gamma]
+    v0 = [200, 0, 0]; %m/s,deg, [horizontal velocity, down velocity, velocity direction]
+    att0 = [0, 0, 0]; %deg, [psi,theta,gamma]
     %---------------------------------------------------------------------%
     Cnb = angle2dcm(att0(1)/180*pi, att0(2)/180*pi, att0(3)/180*pi);
     vh = v0(1);
@@ -28,42 +28,28 @@ else
     end
     
     %-------------- yaw --------------%
-    if 60<t && t<=70
-        angle(k,1) = 90*(70-t)/10;
-    elseif 90<t && t<=100
-        angle(k,1) = -90*(t-90)/10;
-    elseif 120<t && t<=130
-        angle(k,1) = -90*(130-t)/10;
-    elseif 150<t && t<=160
-        angle(k,1) = 90*(t-150)/10;
-    elseif 180<t && t<=190
-        angle(k,1) = 90*(190-t)/10;
-    elseif 210<t && t<=220
-        angle(k,1) = -90*(t-210)/10;
-    end
+	angle(k,1) = mod( 90*t/20 +180,360)-180;
 
     %-------------- pith --------------%
+    if t<=4
+        angle(k,2) = 4*t/4;
+    elseif 16<t && t<=20
+        angle(k,2) = 4*(20-t)/4;
+    end
 
     %-------------- roll --------------%
+    if t<=4
+        angle(k,3) = 10*t/4;
+    elseif 16<t && t<=20
+        angle(k,3) = 10*(20-t)/4;
+    end
 
     %-------------- vh --------------%
 
     %-------------- vd --------------%
 
     %-------------- vy --------------%
-    if 60<t && t<=70
-        vy = 90*(70-t)/10;
-    elseif 90<t && t<=100
-        vy = -90*(t-90)/10;
-    elseif 120<t && t<=130
-        vy = -90*(130-t)/10;
-    elseif 150<t && t<=160
-        vy = 90*(t-150)/10;
-    elseif 180<t && t<=190
-        vy = 90*(190-t)/10;
-    elseif 210<t && t<=220
-        vy = -90*(t-210)/10;
-    end
+    vy = 90*t/20; %deg
     
     %-------------- GPS --------------%
     

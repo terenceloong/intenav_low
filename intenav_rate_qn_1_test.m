@@ -25,14 +25,30 @@ dtr = 1*1; %m
 dtv = 0.1*1; %m/s
 
 %--filter--%
-global Nx
 Nx = 14;
-filter_para;
+%Kalman Filter parameter
+switch Nx
+    case 14
+        In = eye(Nx);
+        P0 = diag([[1,1,1]*3e-3, [1,1,1]*4, [1,1]*1e-8,25, 1,1e-2, [1,1,1]*3e-4]);
+        Q = diag([[1,1,1]*gyro_noise/dt, [1,1,1]*acc_noise/dt, [2.5e-16,2.5e-16,1e-2]*1, 1e-2*1,1e-4*0, [1,1,1]*2e-7*1]);
+        R_rou = (sigma3_rou/3)^2;
+        R_drou = (sigma3_drou/3)^2;
+        R_psi = 1e-4;
+    case 15
+        In = eye(Nx);
+        P0 = diag([[1,1,1]*3e-3, [1,1,1]*4, [1,1]*1e-8,25, 1,1e-2, [1,1,1]*3e-4, 1e-2]);
+        Q = diag([[1,1,1]*gyro_noise/dt, [1,1,1]*acc_noise/dt, [2.5e-16,2.5e-16,1e-2]*1, 1e-2*1,1e-4*0, [1,1,1]*2e-7*1, 1e-2]);
+        R_rou = (sigma3_rou/3)^2;
+        R_drou = (sigma3_drou/3)^2;
+        R_psi = 1e-4;
+	case 17
+end
 
 %*************************************************************************%
 %--store--%
 nav = zeros(n,9); %[lat, lon, h, vn, ve, vd, yaw, pitch, roll]
-filter = zeros(n,Nx-9); %[dtr,dtv, ex,ey,ez, ax,ay,az]
+bias_esti = zeros(n,Nx-9); %[dtr,dtv, ex,ey,ez, ax,ay,az]
 error_gps = zeros(n,6);
 output_r = zeros(n,8); %residual
 output_Xc = zeros(n,Nx); %state variable correction
@@ -87,23 +103,23 @@ for k=1:n
     end
     
     %--inertial navigation solution--%
-    K1 = fun_dx_qn(avp, [gyro0;acc0]);
-    K2 = fun_dx_qn(avp+dts*K1/2, [gyro1;acc1]);
-    K3 = fun_dx_qn(avp+dts*K2/2, [gyro1;acc1]);
-    K4 = fun_dx_qn(avp+dts*K3, [gyro2;acc2]);
+    K1 = ins_avp_qn(avp, [gyro0;acc0]);
+    K2 = ins_avp_qn(avp+dts*K1/2, [gyro1;acc1]);
+    K3 = ins_avp_qn(avp+dts*K2/2, [gyro1;acc1]);
+    K4 = ins_avp_qn(avp+dts*K3, [gyro2;acc2]);
     avp = avp + (K1+2*K2+2*K3+K4)*dts/6;
     avp(1:4) = quatnormalize(avp(1:4)')'; %quaternion normalization
     
 %=========================================================================%
     %----------time update----------%
-    Phi = state_matrix(avp, acc1, dts);
+    Phi = state_matrix(avp, acc1, dts, Nx);
     X = Phi*X;
     P = s*P*s;
     P = Phi*P*Phi' + Q*dts^2;
 
     if gpsflag(kj)==1
         %----------claculate measure matrix----------%
-        [H, Z, ng] = measure_matrix(avp, sv);
+        [H, Z, ng] = measure_matrix(avp, sv, Nx);
         R = diag([ones(1,ng)*R_rou, ones(1,ng)*R_drou]);
         
 %         if t<50
@@ -147,9 +163,9 @@ for k=1:n
     end
     
     %---------store filter----------%
-    filter(k,1:2) = X(10:11)';
-    filter(k,3:5) = X(12:14)'/pi*180;
-    filter(k,6:end) = X(15:end)';
+    bias_esti(k,1:2) = X(10:11)';
+    bias_esti(k,3:5) = X(12:14)'/pi*180;
+    bias_esti(k,6:end) = X(15:end)';
     output_P(k,:) = sqrt(diag(P))'; %%%
 %=========================================================================%
     
@@ -183,8 +199,8 @@ function avp = nav_init(p, v, att)
     %                           m/s       rad     m
 end
 
-function Phi = state_matrix(avp, fb, dts)
-    global a f Nx
+function Phi = state_matrix(avp, fb, dts, Nx)
+    global a f
     lat = avp(8);
     h = avp(10);
     Rm = (1-f)^2*a / (1-(2-f)*f*sin(lat)^2)^1.5;
@@ -213,8 +229,8 @@ function Phi = state_matrix(avp, fb, dts)
     Phi = eye(Nx)+A*dts+(A*dts)^2/2;
 end
 
-function [H, Z, ng] = measure_matrix(avp, sv)
-    global a f Nx
+function [H, Z, ng] = measure_matrix(avp, sv, Nx)
+    global a f
     lat = avp(8);
     lon = avp(9);
     h = avp(10);
