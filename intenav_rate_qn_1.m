@@ -88,7 +88,7 @@ for k=1:n
     %=======increase yaw's P at the start time of maneuvering
 %     if t==60 || t==90 || t==120 || t==150 || t==180 || t==210
     if t==60
-        P_a(3,3) = 1e-4; %????????
+        P_a(3,3) = 1e-4;
     end
     
     %=======increase yaw's P and R_psi when detecting uniform motion
