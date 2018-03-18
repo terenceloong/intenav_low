@@ -25,13 +25,29 @@ dtv = 0.1*1; %m/s
 
 %--filter--%
 %variate-N, Phi, X, P, Q, H, Z, R, E, Xc, filter_P, filter_E, filter_Xc
-N_a = 14;
+N_a = 15;
 X_a = zeros(N_a,1); %[phix,phiy,phiz, dvn,dve,dvd, dlat,dlon,dh, dtr,dtv, ex,ey,ez]
-P_a = diag([[1,1,1]*3e-3, [1,1,1]*4, [1,1]*1e-8,25, 1,1e-2, [1,1,1]*3e-4]); P0_a = P_a;
-Q_a = diag([[1,1,1]*gyro_noise/dt, [1,1,1]*acc_noise/dt, [2.5e-16,2.5e-16,1e-2]*1, 1e-2*1,1e-5*1, [1,1,1]*(92/3600/180*pi)^2*1]) * dt^2;
+switch N_a
+    case 14
+        P_a = diag([[1,1,1]*3e-3, [1,1,1]*4, [1,1]*1e-8,25, 1,1e-2, [1,1,1]*3e-4]);
+        P0_a = P_a;
+        Q_a = diag([[1,1,1]*gyro_noise/dt, [1,1,1]*acc_noise/dt, [2.5e-16,2.5e-16,1e-2],...
+                    1e-2,1e-5, [1,1,1]*(92/3600/180*pi)^2]) * dt^2;
+    case 15
+        P_a = diag([[1,1,1]*3e-3, [1,1,1]*4, [1,1]*1e-8,25, 1,1e-2, [1,1,1]*3e-4, 1e-2]);
+        P0_a = P_a;
+        Q_a = diag([[1,1,1]*gyro_noise/dt, [1,1,1]*acc_noise/dt, [2.5e-16,2.5e-16,1e-2],...
+                    1e-2,1e-5, [1,1,1]*(92/3600/180*pi)^2, 1e-4]) * dt^2;
+    case 17
+        P_a = diag([[1,1,1]*3e-3, [1,1,1]*4, [1,1]*1e-8,25, 1,1e-2, [1,1,1]*3e-4, [0.1,0.1,1]*1e-2]);
+        P0_a = P_a;
+        Q_a = diag([[1,1,1]*gyro_noise/dt, [1,1,1]*acc_noise/dt, [2.5e-16,2.5e-16,1e-2],...
+                    1e-2,1e-5, [1,1,1]*(92/3600/180*pi)^2, [1,1,1]*1e-4]) * dt^2;
+end
 R_rou = (sigma3_rou/3)^2;
 R_drou = (sigma3_drou/3)^2;
-R_psi = (0.5/180*pi)^2; R0_psi = R_psi;
+R_psi = (0.5/180*pi)^2;
+R0_psi = R_psi;
 
 bias_esti = zeros(n,N_a-9); %[dtr,dtv, ex,ey,ez, ax,ay,az]
 filter_P_a = zeros(n,N_a); %state variable standard deviation
@@ -86,14 +102,14 @@ for k=1:n
     
 %=========================================================================%
     %=======increase yaw's P at the start time of maneuvering
-%     if t==60 || t==90 || t==120 || t==150 || t==180 || t==210
+% %     if t==60 || t==90 || t==120 || t==150 || t==180 || t==210
     if t==60
         P_a(3,3) = 1e-4;
     end
     
     %=======increase yaw's P and R_psi when detecting uniform motion
-%     if t==72 || t==102 || t==132 || t==162 || t==192 || t==222
-    if t==72
+% %     if t==72 || t==102 || t==132 || t==162 || t==192 || t==222
+    if t==82
         psi0 = traj(kj,7)/180*pi + psi_error;
         [psi,~,~] = dcm2angle(quat2dcm(avp(1:4)'));
         dpsi = angle_pmpi(psi-psi0);
@@ -104,6 +120,16 @@ for k=1:n
         end
         R_psi = R0_psi*100;
     end
+    
+    %---------------------------%
+    if t==60
+        Q_a(15,15) = 1e-3*dt^2;
+        P_a(15,15) = 1e-3;
+    end
+    if t==82
+        Q_a(15,15) = 1e-4*dt^2;
+    end
+    %---------------------------%
     
 %=========================================================================%
     if gpsflag(kj)==0
@@ -118,7 +144,7 @@ for k=1:n
         
         %=======reference heading while moving uniformly
 %         if t<60 || (72<=t&&t<90) || (102<=t&&t<120) || (132<=t&&t<150) || (162<=t&&t<180) || (192<=t&&t<210) || 222<=t
-        if t<60 || 72<=t
+        if t<60 || 82<=t
             H_a = [H_a; zeros(1,N_a)];
             H_a(end,3) = -1;
             R_a = [R_a, zeros(2*ng,1)];

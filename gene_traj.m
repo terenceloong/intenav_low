@@ -6,7 +6,7 @@ dt = 0.01;
 dtgps = 0.1;
 
 %--low accurate--%
-acc_bias = [5, -5, -4]*0.01 *0; %[mg], m/s^2
+acc_bias = [5, 5, -4]*0.01 *1; %[mg], m/s^2
 gyro_bias = [0.2, 0.15, -0.1]/180*pi *1; %[deg], rad
 acc_noise =  (0.11/sqrt(3600))^2 *1; % [m/s^2/sqrt/sqrt(Hz)], (m/s^2)^2/Hz
 gyro_noise = (0.66/sqrt(3600)/180*pi)^2 *1; % [deg/s/sqrt(Hz)], (rad/s)^2/Hz

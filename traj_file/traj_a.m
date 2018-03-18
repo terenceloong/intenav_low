@@ -9,7 +9,7 @@ if t==0
     gpsflag = zeros(T/dt+1,1); %0/1
     %---------------------------------------------------------------------%
     p0 = [30, 120, 5000]; %deg, [lat,lon,h]
-    v0 = [50, 0, 0]; %m/s,deg, [horizontal velocity, down velocity, velocity direction]
+    v0 = [200, 0, 0]; %m/s,deg, [horizontal velocity, down velocity, velocity direction]
     att0 = [0, 0, 0]; %deg, [psi,theta,gamma]
     %---------------------------------------------------------------------%
     Cnb = angle2dcm(att0(1)/180*pi, att0(2)/180*pi, att0(3)/180*pi);
@@ -28,17 +28,14 @@ else
     end
     
     %-------------- yaw --------------%
-%     if 50<t && t<110
-%         angle(k,1) = mod( 90*(t-50)/60 +180,360)-180;
-%     end
 
     %-------------- pith --------------%
 
     %-------------- roll --------------%
 
     %-------------- vh --------------%
-    if 50<t
-        vh = 2*(t-50)+50;
+    if t<20
+        vh = 2*t+200;
     end
 
     %-------------- vd --------------%
