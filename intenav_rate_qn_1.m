@@ -171,12 +171,28 @@ for k=1:n
         
         %---------adjust----------%
         [avp, X_a] = ins_adjust(avp, X_a);
+        switch N_a
+            case 14
+                dgyro = dgyro + X_a(12:14)/pi*180;
+                X_a(12:14) = [0;0;0];
+            case 15
+                dgyro = dgyro + X_a(12:14)/pi*180;
+                dacc(3) = dacc(3) + X_a(15);
+                X_a(12:15) = [0;0;0;0];
+            case 17
+                dgyro = dgyro + X_a(12:14)/pi*180;
+                dacc = dacc + X_a(15:17);
+                X_a(12:17) = [0;0;0;0;0;0];
+        end
     end
     
 %=========================================================================%    
     %---------store filter----------%
     bias_esti(k,:) = X_a(10:end)';
-    bias_esti(k,3:5) = bias_esti(k,3:5)/pi*180; %deg
+    bias_esti(k,3:5) = bias_esti(k,3:5)/pi*180 + dgyro'; %deg
+    if N_a==15
+        bias_esti(k,6) = bias_esti(k,6) + dacc(3);
+    end
     filter_P_a(k,:) = sqrt(diag(P_a))';
     
 %=========================================================================%   

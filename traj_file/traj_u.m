@@ -2,7 +2,7 @@
 
 if t==0
     %-------------- init --------------%
-    T = 200;
+    T = 20;
     n = T/dt*2+1;
 	angle = zeros(n,3); %deg
     speed = zeros(n,3); %m/s

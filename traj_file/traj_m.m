@@ -27,6 +27,9 @@ else
     speed(k,:) = speed(k-1,:);
     if mod(k-1,dtgps/dt*2)==0
         gpsflag((k-1)/2+1) = 1;
+        if 300<t && t<=325 %%%%%
+            gpsflag((k-1)/2+1) = 0;
+        end
     end
     
     %-------------- yaw --------------%
