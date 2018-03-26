@@ -1,4 +1,4 @@
-%maneuver
+%maneuver once
 
 if t==0
     %-------------- init --------------%
@@ -20,6 +20,8 @@ if t==0
     vb0 = vn0*Cnb';
     angle(1,:) = att0;
     speed(1,:) = vn0;
+    maneu_start = 60; %%%%%%
+    maneu_end = 82; %%%%%%
 else
     angle(k,:) = angle(k-1,:);
     speed(k,:) = speed(k-1,:);

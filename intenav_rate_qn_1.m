@@ -9,7 +9,7 @@ earth_constant;
 
 %--navigation initial value--%
 p = traj(1,1:3)' + [[3; 3]/a/pi*180; 5] *1; %deg
-v = traj(1,4:6)' + [1; 1.2; -1.5] *1; %m/s
+v = traj(1,4:6)' + [1; 1.2; -1] *1; %m/s
 att = traj(1,7:9)' + [2.7; 2.3; 1.3] *1; %deg
 pva0 = [p;v;att]'; %record initial value
 
@@ -97,39 +97,40 @@ for k=1:n
     end
     
     %--inertial navigation solution--%
-    avp = RK4(@ins_avp_qn, avp, dts, [gyro0;acc0],[gyro1;acc1],[gyro2;acc2]);
-    avp(1:4) = quatnormalize(avp(1:4)')'; %quaternion normalization
+%     avp = RK4(@ins_avp_qn, avp, dts, [gyro0;acc0],[gyro1;acc1],[gyro2;acc2]);
+%     avp(1:4) = quatnormalize(avp(1:4)')'; %quaternion normalization
+    avp = ins_solve_3(avp, dts, [gyro0;acc0],[gyro1;acc1],[gyro2;acc2]);
+%     avp = ins_solve_1(avp, dts, [gyro0;acc0],[gyro1;acc1],[gyro2;acc2]);
     
 %=========================================================================%
-    %=======increase yaw's P at the start time of maneuvering
-% %     if t==60 || t==90 || t==120 || t==150 || t==180 || t==210
-    if t==60
-        P_a(3,3) = 1e-4;
-    end
-    
-    %=======increase yaw's P and R_psi when detecting uniform motion
-% %     if t==72 || t==102 || t==132 || t==162 || t==192 || t==222
-    if t==82
-        psi0 = traj(kj,7)/180*pi + psi_error;
-        [psi,~,~] = dcm2angle(quat2dcm(avp(1:4)'));
-        dpsi = angle_pmpi(psi-psi0);
-        if abs(dpsi)>(2/180*pi)
-            P_a(3,3) = (0.1*abs(dpsi))^2;
-        else
-            P_a(3,3) = (0.1*2/180*pi)^2;
+    if exist('maneu_start','var')==1
+        %=======increase yaw's P at the start time of maneuvering
+        if length(find(maneu_start==t))==1
+            P_a(3,3) = 1e-4;
         end
-        R_psi = R0_psi*100;
+        %=======increase yaw's P and R_psi when detecting uniform motion
+        if length(find(maneu_end==t))==1
+            psi0 = traj(kj,7)/180*pi + psi_error;
+            [psi,~,~] = dcm2angle(quat2dcm(avp(1:4)'));
+            dpsi = angle_pmpi(psi-psi0);
+            if abs(dpsi)>(2/180*pi) %2deg
+                P_a(3,3) = (0.1*abs(dpsi))^2;
+            else
+                P_a(3,3) = (0.1*2/180*pi)^2;
+            end
+            R_psi = R0_psi*100;
+        end
+        %=======accelerometer bias
+        if N_a==15
+            if length(find(maneu_start==t))==1
+                Q_a(15,15) = 1e-3*dt^2;
+                P_a(15,15) = 1e-3;
+            end
+            if length(find(maneu_end==t))==1
+                Q_a(15,15) = 1e-4*dt^2;
+            end
+        end
     end
-    
-    %---------------------------%
-    if t==60
-        Q_a(15,15) = 1e-3*dt^2;
-        P_a(15,15) = 1e-3;
-    end
-    if t==82
-        Q_a(15,15) = 1e-4*dt^2;
-    end
-    %---------------------------%
     
 %=========================================================================%
     if gpsflag(kj)==0
@@ -143,8 +144,9 @@ for k=1:n
         R_a = diag([ones(1,ng)*R_rou, ones(1,ng)*R_drou]);
         
         %=======reference heading while moving uniformly
-%         if t<60 || (72<=t&&t<90) || (102<=t&&t<120) || (132<=t&&t<150) || (162<=t&&t<180) || (192<=t&&t<210) || 222<=t
-        if t<60 || 82<=t
+        logic1 = maneu_start>t;
+        logic2 = maneu_end<=t;
+        if logic1(1)==1 || logic2(end)==1 || length(find((logic1(2:end)+logic2(1:end-1))==2))==1
             H_a = [H_a; zeros(1,N_a)];
             H_a(end,3) = -1;
             R_a = [R_a, zeros(2*ng,1)];
@@ -282,4 +284,93 @@ function [nav, x] = ins_adjust(nav, x)
     end
     nav(5:10) = nav(5:10) - x(4:9);
     x(1:9) = zeros(9,1);
+end
+
+%^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^%
+function avp = ins_solve_3(avp, dt, imu0, imu1, imu2)
+    global a f w
+    q = avp(1:4);
+    v = avp(5:7);
+    v0 = v;
+    lat = avp(8);
+    lon = avp(9);
+    h = avp(10);
+    Rm = (1-f)^2*a / (1-(2-f)*f*sin(lat)^2)^1.5;
+    Rn =         a / (1-(2-f)*f*sin(lat)^2)^0.5;
+    Cnb = quat2dcm(q');
+    wien = [w*cos(lat); 0; -w*sin(lat)];
+    wenn = [v(2)/(Rn+h); -v(1)/(Rm+h); -v(2)/(Rn+h)*tan(lat)];
+    winb = Cnb*(wien+wenn);  
+    wnbb0 = imu0(1:3) - winb;
+    wnbb1 = imu1(1:3) - winb;
+    wnbb2 = imu2(1:3) - winb;
+    acc0 = imu0(4:6);
+    acc1 = imu1(4:6);
+    acc2 = imu2(4:6);
+    dtheta1 = (wnbb0+wnbb1)*dt/4;
+    dtheta2 = (wnbb1+wnbb2)*dt/4;
+    dv1 = (acc0+acc1)*dt/4;
+    dv2 = (acc1+acc2)*dt/4;
+    q = RK4(@fun_dq, q, dt, wnbb0,wnbb1,wnbb2);
+    q = quatnormalize(q')';
+    dvc = 0.5*cross(dtheta1,dv1) + 7/6*cross(dtheta1,dv2) - 1/6*cross(dtheta2,dv1) + 0.5*cross(dtheta2,dv2);
+    v = v + Cnb'*(dv1+dv2+dvc) - dt*cross((2*wien+wenn),v) + dt*[0;0;gravity(lat,h)];
+    lat = lat + dt*(v0(1)+v(1))/2/(Rm+h);
+    lon = lon + dt*(v0(2)+v(2))/2/(Rn+h)*sec(lat);
+    h = h - dt*(v0(3)+v(3))/2;
+    avp = [q; v ; lat; lon; h];
+end
+
+function dq = fun_dq(q, w)
+    dq = 0.5*[ 0,   -w(1), -w(2), -w(3);
+              w(1),   0,    w(3), -w(2);
+              w(2), -w(3),   0,    w(1);
+              w(3),  w(2), -w(1),   0 ]*q;
+end
+
+function avp = ins_solve_1(avp, dt, imu0, imu1, imu2)
+    global a f w
+    q = avp(1:4);
+    v = avp(5:7);
+    lat = avp(8);
+    h = avp(10);
+	Rm = (1-f)^2*a / (1-(2-f)*f*sin(lat)^2)^1.5;
+    Rn =         a / (1-(2-f)*f*sin(lat)^2)^0.5;
+    Cnb = quat2dcm(q');
+	wien = [w*cos(lat); 0; -w*sin(lat)];
+    wenn = [v(2)/(Rn+h); -v(1)/(Rm+h); -v(2)/(Rn+h)*tan(lat)];
+    winb = Cnb*(wien+wenn);
+    w2inn = 2*wien+wenn;
+    wnbb0 = imu0(1:3) - winb;
+    wnbb1 = imu1(1:3) - winb;
+    wnbb2 = imu2(1:3) - winb;
+    fb0 = imu0(4:6);
+    fb1 = imu1(4:6);
+    fb2 = imu2(4:6);
+    g = gravity(lat,h);
+    avp = RK4(@fun_davp, avp, dt, [wnbb0;fb0;w2inn;Rm;Rn;g],[wnbb1;fb1;w2inn;Rm;Rn;g],[wnbb2;fb2;w2inn;Rm;Rn;g]);
+    avp(1:4) = quatnormalize(avp(1:4)')';
+end
+
+function dx = fun_davp(x, u)
+    q = x(1:4);
+    v = x(5:7);
+    lat = x(8);
+    h = x(10);
+    w = u(1:3);
+    fb = u(4:6);
+    w2inn = u(7:9);
+    Rm = u(10);
+    Rn = u(11);
+    g = u(12);
+    Cnb = quat2dcm(q');
+    dq = 0.5*[ 0,   -w(1), -w(2), -w(3);
+              w(1),   0,    w(3), -w(2);
+              w(2), -w(3),   0,    w(1);
+              w(3),  w(2), -w(1),   0 ]*q;
+    dv = Cnb'*fb - cross(w2inn,v) + [0;0;g];
+    dlat = v(1)/(Rm+h);
+    dlon = v(2)/(Rn+h)*sec(lat);
+    dh = -v(3);
+    dx = [dq; dv; dlat; dlon; dh];
 end

@@ -20,6 +20,8 @@ if t==0
     vb0 = vn0*Cnb';
     angle(1,:) = att0;
     speed(1,:) = vn0;
+    maneu_start = [60,90,120,150,180,210]; %%%%%%
+    maneu_end = [72,102,132,162,192,222]; %%%%%%
 else
     angle(k,:) = angle(k-1,:);
     speed(k,:) = speed(k-1,:);
