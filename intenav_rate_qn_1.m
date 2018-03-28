@@ -46,12 +46,12 @@ switch N_a
 end
 R_rou = (sigma3_rou/3)^2;
 R_drou = (sigma3_drou/3)^2;
-R_psi = (0.5/180*pi)^2;
+R_psi = 0.1/180*pi;
 R0_psi = R_psi;
 
 bias_esti = zeros(n,N_a-9); %[dtr,dtv, ex,ey,ez, ax,ay,az]
 filter_P_a = zeros(n,N_a); %state variable standard deviation
-filter_E_a = zeros(n,8); %residual
+filter_E_a = zeros(n,9); %residual
 filter_Xc_a = zeros(n,N_a); %state variable correction
 
 %*************************************************************************%
@@ -94,6 +94,9 @@ for k=1:n
         error_gps(k,3) = gps(3)-traj(kj,3);
         error_gps(k,4:6) = gps(5:7)-traj(kj,4:6);
         sv = sv4;
+%         if 350<t&&t<400
+%             sv = sv(1:2,:);
+%         end
     end
     
     %--inertial navigation solution--%
@@ -110,35 +113,36 @@ for k=1:n
         end
         %=======increase yaw's P and R_psi when detecting uniform motion
         if length(find(maneu_end==t))==1
-            psi0 = traj(kj,7)/180*pi + psi_error;
+            psi_r = atan2(gps(6),gps(5)) + psi_error;
             [psi,~,~] = dcm2angle(quat2dcm(avp(1:4)'));
-            dpsi = angle_pmpi(psi-psi0);
+            dpsi = angle_pmpi(psi-psi_r);
             if abs(dpsi)>(2/180*pi) %2deg
                 P_a(3,3) = (0.1*abs(dpsi))^2;
             else
                 P_a(3,3) = (0.1*2/180*pi)^2;
             end
-            R_psi = R0_psi*100;
+            if (20*abs(dpsi)/pi*180)>1
+                R_psi = R0_psi * (20*abs(dpsi)/pi*180);
+            end
         end
         %=======accelerometer bias
         if N_a==15
             if length(find(maneu_start==t))==1
                 Q_a(15,15) = 1e-3*dt^2;
                 P_a(15,15) = 1e-3;
-            end
-            if length(find(maneu_end==t))==1
+            elseif length(find(maneu_end==t))==1
                 Q_a(15,15) = 1e-4*dt^2;
             end
         end
     end
     
-%=========================================================================%
+%^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^%
     if gpsflag(kj)==0
         %---------time update----------%
         Phi_a = state_deep(avp, acc1, dts, N_a);
         [X_a, P_a] = kalman_filter(Phi_a, X_a, P_a, Q_a);
     else
-        %---------measure update----------%
+        %---------measure equation----------%
         Phi_a = state_deep(avp, acc1, dts, N_a);
         [H_a, Z_a, ng] = measure_deep(avp, sv, N_a);
         R_a = diag([ones(1,ng)*R_rou, ones(1,ng)*R_drou]);
@@ -146,47 +150,47 @@ for k=1:n
         %=======reference heading while moving uniformly
         logic1 = maneu_start>t;
         logic2 = maneu_end<=t;
-        if logic1(1)==1 || logic2(end)==1 || length(find((logic1(2:end)+logic2(1:end-1))==2))==1
+        if (logic1(1)==1 || logic2(end)==1 || length(find((logic1(2:end)+logic2(1:end-1))==2))==1) && ng>=4
             H_a = [H_a; zeros(1,N_a)];
             H_a(end,3) = -1;
             R_a = [R_a, zeros(2*ng,1)];
             R_a = [R_a; zeros(1,2*ng+1)];
-            R_a(end,end) = R_psi;
-            psi0 = traj(kj,7)/180*pi + psi_error;
+            R_a(end,end) = R_psi^2;
+            psi_r = atan2(gps(6),gps(5)) + psi_error;
             [psi,~,~] = dcm2angle(quat2dcm(avp(1:4)'));
-            dpsi = angle_pmpi(psi-psi0);
-            Z_a = [Z_a; dpsi+randn(1)*0.5/180*pi];
+            dpsi = angle_pmpi(psi-psi_r);
+            Z_a = [Z_a; dpsi]; 
+%             Z_a = [Z_a; dpsi+randn(1)*0.5/180*pi];
         end
         
         %=======decrease R_psi
-        if (R_psi*0.99)>R0_psi
-            R_psi = R_psi*0.99;
+        if (R_psi-R0_psi/5)>R0_psi
+            R_psi = R_psi-R0_psi/5;
         else
             R_psi = R0_psi;
         end
         
+        %---------measure update----------%
         [X_a, P_a, E_a, Xc_a] = kalman_filter(Phi_a, X_a, P_a, Q_a, H_a, Z_a, R_a);
-        filter_E_a(k,:) = E_a(1:8)';
+        filter_E_a(k,1:length(E_a)) = E_a';
         filter_Xc_a(k,:) = Xc_a';
         
         %---------adjust----------%
         [avp, X_a] = ins_adjust(avp, X_a);
+        dgyro = dgyro + X_a(12:14)/pi*180;
         switch N_a
             case 14
-                dgyro = dgyro + X_a(12:14)/pi*180;
                 X_a(12:14) = [0;0;0];
             case 15
-                dgyro = dgyro + X_a(12:14)/pi*180;
                 dacc(3) = dacc(3) + X_a(15);
                 X_a(12:15) = [0;0;0;0];
             case 17
-                dgyro = dgyro + X_a(12:14)/pi*180;
                 dacc = dacc + X_a(15:17);
                 X_a(12:17) = [0;0;0;0;0;0];
         end
     end
     
-%=========================================================================%    
+%^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^%    
     %---------store filter----------%
     bias_esti(k,:) = X_a(10:end)';
     bias_esti(k,3:5) = bias_esti(k,3:5)/pi*180 + dgyro'; %deg

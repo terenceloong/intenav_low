@@ -1,7 +1,7 @@
 %generate trajectory
 clear;clc;
 
-trajfile = 'traj_m';
+trajfile = 'traj_m1';
 dt = 0.01;
 dtgps = 0.1;
 
