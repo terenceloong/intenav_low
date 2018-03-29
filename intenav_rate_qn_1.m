@@ -29,25 +29,26 @@ N_a = 15;
 X_a = zeros(N_a,1); %[phix,phiy,phiz, dvn,dve,dvd, dlat,dlon,dh, dtr,dtv, ex,ey,ez]
 switch N_a
     case 14
-        P_a = diag([[1,1,1]*3e-3, [1,1,1]*4, [1,1]*1e-8,25, 1,1e-2, [1,1,1]*3e-4]);
+        P_a = diag([[1,1,1]*(3/180*pi), [1,1,1]*2, [1,1]*1e-6,5, 1,0.1, [1,1,1]*(1/180*pi)].^2);
         P0_a = P_a;
-        Q_a = diag([[1,1,1]*gyro_noise/dt, [1,1,1]*acc_noise/dt, [2.5e-16,2.5e-16,1e-2],...
-                    1e-2,1e-5, [1,1,1]*(92/3600/180*pi)^2]) * dt^2;
+        Q_a = diag([[1,1,1]*sqrt(gyro_noise/dt)*0.5, [1,1,1]*sqrt(acc_noise/dt)*0.5,...
+                    [8e-9,8e-9,0.05], 0.05,0.01, [1,1,1]*(46/3600/180*pi)].^2) *dts^2;
     case 15
-        P_a = diag([[1,1,1]*3e-3, [1,1,1]*4, [1,1]*1e-8,25, 1,1e-2, [1,1,1]*3e-4, 1e-2]);
+        P_a = diag([[1,1,1]*(3/180*pi), [1,1,1]*2, [1,1]*1e-6,5, 1,0.1, [1,1,1]*(1/180*pi), 0.1].^2);
         P0_a = P_a;
-        Q_a = diag([[1,1,1]*gyro_noise/dt, [1,1,1]*acc_noise/dt, [2.5e-16,2.5e-16,1e-2],...
-                    1e-2,1e-5, [1,1,1]*(92/3600/180*pi)^2, 1e-4]) * dt^2;
+        Q_a = diag([[1,1,1]*sqrt(gyro_noise/dt)*0.5, [1,1,1]*sqrt(acc_noise/dt)*0.5,...
+                    [8e-9,8e-9,0.05], 0.05,0.01, [1,1,1]*(46/3600/180*pi), 0.005].^2) *dts^2;
     case 17
-        P_a = diag([[1,1,1]*3e-3, [1,1,1]*4, [1,1]*1e-8,25, 1,1e-2, [1,1,1]*3e-4, [0.1,0.1,1]*1e-2]);
+        P_a = diag([[1,1,1]*(3/180*pi), [1,1,1]*2, [1,1]*1e-6,5, 1,0.1, [1,1,1]*(1/180*pi), [1,1,1]*0.1].^2);
         P0_a = P_a;
-        Q_a = diag([[1,1,1]*gyro_noise/dt, [1,1,1]*acc_noise/dt, [2.5e-16,2.5e-16,1e-2],...
-                    1e-2,1e-5, [1,1,1]*(92/3600/180*pi)^2, [1,1,1]*1e-4]) * dt^2;
+        Q_a = diag([[1,1,1]*sqrt(gyro_noise/dt)*0.5, [1,1,1]*sqrt(acc_noise/dt)*0.5,...
+                    [8e-9,8e-9,0.05], 0.05,0.01, [1,1,1]*(46/3600/180*pi), [1,1,1]*0.005].^2) *dts^2;
 end
+Q0_ez = Q_a(14,14);
 R_rou = (sigma3_rou/3)^2;
 R_drou = (sigma3_drou/3)^2;
-R_psi = 0.1/180*pi;
-R0_psi = R_psi;
+R_psi = 0.1/180*pi; %current value
+R0_psi = R_psi; %original value
 
 bias_esti = zeros(n,N_a-9); %[dtr,dtv, ex,ey,ez, ax,ay,az]
 filter_P_a = zeros(n,N_a); %state variable standard deviation
@@ -107,31 +108,31 @@ for k=1:n
     
 %=========================================================================%
     if exist('maneu_start','var')==1
-        %=======increase yaw's P at the start time of maneuvering
+        %=======increase yaw's P, z-axis acc P&Q at the start time of maneuvering
         if length(find(maneu_start==t))==1
-            P_a(3,3) = 1e-4;
+            P_a(3,3) = (0.5/180*pi)^2;
+            if N_a==15 %z-axis acc bias
+                Q_a(15,15) = 0.015^2 *dts^2; %1.5mg
+                P_a(15,15) = 0.03^2; %3mg
+            end
         end
         %=======increase yaw's P and R_psi when detecting uniform motion
         if length(find(maneu_end==t))==1
             psi_r = atan2(gps(6),gps(5)) + psi_error;
             [psi,~,~] = dcm2angle(quat2dcm(avp(1:4)'));
             dpsi = angle_pmpi(psi-psi_r);
-            if abs(dpsi)>(2/180*pi) %2deg
+            dpsi_deg_abs = abs(dpsi)/pi*180;
+            if dpsi_deg_abs>2 %2deg
                 P_a(3,3) = (0.1*abs(dpsi))^2;
             else
                 P_a(3,3) = (0.1*2/180*pi)^2;
             end
-            if (20*abs(dpsi)/pi*180)>1
-                R_psi = R0_psi * (20*abs(dpsi)/pi*180);
+            if (20*dpsi_deg_abs)>1
+                R_psi = R0_psi * (20*dpsi_deg_abs);
+                Q_a(14,14) = 0;
             end
-        end
-        %=======accelerometer bias
-        if N_a==15
-            if length(find(maneu_start==t))==1
-                Q_a(15,15) = 1e-3*dt^2;
-                P_a(15,15) = 1e-3;
-            elseif length(find(maneu_end==t))==1
-                Q_a(15,15) = 1e-4*dt^2;
+            if N_a==15 %z-axis acc bias
+                Q_a(15,15) = 0.005^2 *dts^2; %0.5mg
             end
         end
     end
@@ -168,6 +169,7 @@ for k=1:n
             R_psi = R_psi-R0_psi/5;
         else
             R_psi = R0_psi;
+            Q_a(14,14) = Q0_ez;
         end
         
         %---------measure update----------%
