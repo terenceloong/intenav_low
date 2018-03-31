@@ -8,7 +8,7 @@ if t==0
     speed = zeros(n,3); %m/s
     gpsflag = zeros(T/dt+1,1); %0/1
     %---------------------------------------------------------------------%
-    p0 = [30, 120, 5000]; %deg, [lat,lon,h]
+    p0 = [30, 120, 300]; %deg, [lat,lon,h]
     v0 = [200, 0, 90]; %m/s,deg, [horizontal velocity, down velocity, velocity direction]
     att0 = [90, 0, 0]; %deg, [psi,theta,gamma]
     %---------------------------------------------------------------------%

@@ -27,7 +27,7 @@ grid on
 subplot(3,1,3)
 plot(t, traj(:,6), 'LineWidth',1.5)
 set(gca, 'xlim', [t(1),t(end)])
-set(gca, 'ylim', [-0.2,0.2])
+% set(gca, 'ylim', [-0.2,0.2])
 xlabel('时间(s)')
 ylabel('地向速度(m/s)')
 grid on
@@ -44,14 +44,14 @@ grid on
 subplot(3,1,2)
 plot(t, traj(:,8), 'LineWidth',1.5)
 set(gca, 'xlim', [t(1),t(end)])
-set(gca, 'ylim', [-1,1])
+% set(gca, 'ylim', [1,5])
 xlabel('时间(s)')
 ylabel('俯仰角(°)')
 grid on
 subplot(3,1,3)
 plot(t, traj(:,9), 'LineWidth',1.5)
 set(gca, 'xlim', [t(1),t(end)])
-set(gca, 'ylim', [-1,1])
+% set(gca, 'ylim', [-12,12])
 xlabel('时间(s)')
 ylabel('滚转角(°)')
 grid on

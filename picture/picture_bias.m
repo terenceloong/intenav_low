@@ -11,7 +11,7 @@ set(gca, 'ylim', [-0.1,0.1]+gyro_bias(1)/pi*180)
 legend('预设值','估计值', 'Location','best')
 xlabel('时间(s)')
 ylabel('x轴陀螺仪零偏(°/s)')
-title('x轴陀螺零仪偏估计曲线')
+title('x轴陀螺仪零偏估计曲线')
 grid on
 
 figure
@@ -49,6 +49,6 @@ set(gca, 'xlim', [t(1),t(end)])
 set(gca, 'ylim', [-0.1,0.1]+acc_bias(3))
 legend('预设值','估计值', 'Location','best')
 xlabel('时间(s)')
-ylabel('z轴加速度计零偏(°/s)')
+ylabel('z轴加速度计零偏(m/s^2)')
 title('z轴加速度计零偏估计曲线')
 grid on

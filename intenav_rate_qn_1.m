@@ -95,7 +95,10 @@ for k=1:n
         error_gps(k,3) = gps(3)-traj(kj,3);
         error_gps(k,4:6) = gps(5:7)-traj(kj,4:6);
         sv = sv4;
-%         if 350<t&&t<400
+%         if 400<t&&t<430
+%             sv = sv(1:3,:);
+%         end
+%         if 600<t&&t<630
 %             sv = sv(1:2,:);
 %         end
     end
