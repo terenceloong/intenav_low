@@ -29,20 +29,20 @@ N_a = 15;
 X_a = zeros(N_a,1); %[phix,phiy,phiz, dvn,dve,dvd, dlat,dlon,dh, dtr,dtv, ex,ey,ez]
 switch N_a
     case 14
-        P_a = diag([[1,1,1]*(2/180*pi), [1,1,1]*2, [1,1]*1e-6,5, 1,0.1, [1,1,1]*(0.1/180*pi)].^2);
+        P_a = diag([[1,1,1]*(2/180*pi), [1,1,1]*2, [1/a,1/a,1]*5, 1,0.1, [1,1,1]*(0.1/180*pi)].^2);
         P0_a = P_a;
         Q_a = diag([[1,1,1]*sqrt(gyro_noise/dt)*0.5, [1,1,1]*sqrt(acc_noise/dt)*0.5,...
-                    [8e-9,8e-9,0.05], 0.05,0.01, [1,1,1]*(46/3600/180*pi)].^2) *dts^2;
+                    [1/a,1/a,1]*0.05, 0.05,0.01, [1,1,1]*(46/3600/180*pi)].^2) *dts^2;
     case 15
-        P_a = diag([[1,1,1]*(2/180*pi), [1,1,1]*2, [1,1]*1e-6,5, 1,0.1, [1,1,1]*(0.1/180*pi), 0.05].^2);
+        P_a = diag([[1,1,1]*(2/180*pi), [1,1,1]*2, [1/a,1/a,1]*5, 1,0.1, [1,1,1]*(0.1/180*pi), 0.05].^2);
         P0_a = P_a;
         Q_a = diag([[1,1,1]*sqrt(gyro_noise/dt)*0.5, [1,1,1]*sqrt(acc_noise/dt)*0.5,...
-                    [8e-9,8e-9,0.05], 0.05,0.01, [1,1,1]*(46/3600/180*pi), 0.005].^2) *dts^2;
+                    [1/a,1/a,1]*0.05, 0.05,0.01, [1,1,1]*(46/3600/180*pi), 0.005].^2) *dts^2;
     case 17
-        P_a = diag([[1,1,1]*(2/180*pi), [1,1,1]*2, [1,1]*1e-6,5, 1,0.1, [1,1,1]*(0.1/180*pi), [1,1,1]*0.1].^2);
+        P_a = diag([[1,1,1]*(2/180*pi), [1,1,1]*2, [1/a,1/a,1]*5, 1,0.1, [1,1,1]*(0.1/180*pi), [1,1,1]*0.05].^2);
         P0_a = P_a;
         Q_a = diag([[1,1,1]*sqrt(gyro_noise/dt)*0.5, [1,1,1]*sqrt(acc_noise/dt)*0.5,...
-                    [8e-9,8e-9,0.05], 0.05,0.01, [1,1,1]*(46/3600/180*pi), [1,1,1]*0.005].^2) *dts^2;
+                    [1/a,1/a,1]*0.05, 0.05,0.01, [1,1,1]*(46/3600/180*pi), [1,1,1]*0.005].^2) *dts^2;
 end
 Q0_ez = Q_a(14,14);
 R_rou = (sigma3_rou/3)^2;
@@ -50,7 +50,7 @@ R_drou = (sigma3_drou/3)^2;
 R_psi = 0.1/180*pi; %current value
 R0_psi = R_psi; %original value
 
-bias_esti = zeros(n,N_a-9); %[dtr,dtv, ex,ey,ez, ax,ay,az]
+bias_esti = zeros(n,8); %[dtr,dtv, ex,ey,ez, ax,ay,az]
 filter_P_a = zeros(n,N_a); %state variable standard deviation
 filter_E_a = zeros(n,9); %residual
 filter_Xc_a = zeros(n,N_a); %state variable correction
@@ -111,6 +111,15 @@ for k=1:n
     
 %=========================================================================%
     if exist('maneu_start','var')==1
+        %=======decrease R_psi
+        if gpsflag(kj)==1
+            if (R_psi-R0_psi/5)>R0_psi
+                R_psi = R_psi-R0_psi/5;
+            else
+                R_psi = R0_psi;
+                Q_a(14,14) = Q0_ez;
+            end
+        end
         %=======increase yaw's P, z-axis acc P&Q at the start time of maneuvering
         if length(find(maneu_start==t))==1
             P_a(3,3) = (0.5/180*pi)^2;
@@ -168,14 +177,6 @@ for k=1:n
 %             Z_a = [Z_a; dpsi+randn(1)*0.5/180*pi];
         end
         
-        %=======decrease R_psi
-        if (R_psi-R0_psi/5)>R0_psi
-            R_psi = R_psi-R0_psi/5;
-        else
-            R_psi = R0_psi;
-            Q_a(14,14) = Q0_ez;
-        end
-        
         %---------measure update----------%
         [X_a, P_a, E_a, Xc_a] = kalman_filter(Phi_a, X_a, P_a, Q_a, H_a, Z_a, R_a);
         filter_E_a(k,1:length(E_a)) = E_a';
@@ -184,25 +185,21 @@ for k=1:n
         %---------adjust----------%
         [avp, X_a] = ins_adjust(avp, X_a);
         dgyro = dgyro + X_a(12:14)/pi*180;
-        switch N_a
-            case 14
-                X_a(12:14) = [0;0;0];
-            case 15
-                dacc(3) = dacc(3) + X_a(15);
-                X_a(12:15) = [0;0;0;0];
-            case 17
-                dacc = dacc + X_a(15:17);
-                X_a(12:17) = [0;0;0;0;0;0];
+        X_a(12:14) = [0;0;0];
+        if N_a==15
+            dacc(3) = dacc(3) + X_a(15);
+            X_a(15) = 0;
+        elseif N_a==17
+            dacc = dacc + X_a(15:17);
+            X_a(15:17) = [0;0;0];
         end
     end
     
 %^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^%    
     %---------store filter----------%
-    bias_esti(k,:) = X_a(10:end)';
-    bias_esti(k,3:5) = bias_esti(k,3:5)/pi*180 + dgyro'; %deg
-    if N_a==15
-        bias_esti(k,6) = bias_esti(k,6) + dacc(3);
-    end
+    bias_esti(k,1:2) = X_a(10:11)';
+    bias_esti(k,3:5) = dgyro';
+    bias_esti(k,6:8) = dacc';
     filter_P_a(k,:) = sqrt(diag(P_a))';
     
 %=========================================================================%   
