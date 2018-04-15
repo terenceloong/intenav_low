@@ -183,16 +183,20 @@ for k=1:n
         filter_Xc_a(k,:) = Xc_a';
         
         %---------adjust----------%
-        [avp, X_a] = ins_adjust(avp, X_a);
+        if norm(X_a(1:3))>0
+            phi = norm(X_a(1:3));
+            qc = [cos(phi/2), X_a(1:3)'/phi*sin(phi/2)];
+            avp(1:4) = quatmultiply(qc, avp(1:4)')';
+        end
+        avp(5:10) = avp(5:10) - X_a(4:9);
+        X_a(1:9) = zeros(9,1);
         dgyro = dgyro + X_a(12:14)/pi*180;
-        X_a(12:14) = [0;0;0];
         if N_a==15
             dacc(3) = dacc(3) + X_a(15);
-            X_a(15) = 0;
         elseif N_a==17
             dacc = dacc + X_a(15:17);
-            X_a(15:17) = [0;0;0];
         end
+        X_a(12:end) = zeros(N_a-11,1);
     end
     
 %^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^%    
@@ -297,16 +301,6 @@ function [H, Z, ng] = measure_deep(avp, sv, n)
     H(ng+1:2*ng,4:6) = Hb;
     H(ng+1:2*ng,11) = -ones(ng,1);
     Z = [rou-sv(:,8); drou-sv(:,9)];
-end
-
-function [nav, x] = ins_adjust(nav, x)
-    if norm(x(1:3))>0
-        phi = norm(x(1:3));
-        qc = [cos(phi/2), x(1:3)'/phi*sin(phi/2)];
-        nav(1:4) = quatmultiply(qc, nav(1:4)')';
-    end
-    nav(5:10) = nav(5:10) - x(4:9);
-    x(1:9) = zeros(9,1);
 end
 
 %^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^%
